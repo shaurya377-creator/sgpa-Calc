@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "SGPA Calculator/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "SGPA Calculator/$1" }
+  ]
+}
