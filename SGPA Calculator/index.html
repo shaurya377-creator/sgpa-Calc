@@ -29,15 +29,16 @@
 </head>
 <body class="flex items-center justify-center min-h-screen font-sans">
 
-  <div class="card p-8 rounded-2xl shadow-lg w-full max-w-2xl">
+  <div class="card p-8 rounded-2xl shadow-lg w-full max-w-3xl">
     <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">SGPA Calculator</h1>
 
     <table class="w-full border-separate border-spacing-y-3">
       <thead>
-        <tr class="table-header text-left text-gray-800">
+        <tr class="table-header text-center text-gray-800">
           <th class="p-2 rounded-l-lg">#</th>
           <th class="p-2">Subject</th>
           <th class="p-2">Credit</th>
+          <th class="p-2 whitespace-normal break-words w-32">Total Marks<br>(Max 120)</th>
           <th class="p-2 rounded-r-lg">Grade Point</th>
         </tr>
       </thead>
@@ -50,6 +51,9 @@
 
     <p class="text-center mt-6 text-xl font-semibold text-gray-800">
       Your SGPA: <span id="sgpa">0.00</span>
+    </p>
+    <p class="text-center mt-2 text-sm text-gray-600">
+      <em>Note: For Minor and GE Courses don't use Total Marks. Just use Grade Point.</em>
     </p>
   </div>
 
@@ -64,17 +68,33 @@
         <td class="p-2">${count}</td>
         <td class="p-2">
           <input type="text" placeholder="SUBJECT" 
-            class="uppercase-input w-full px-3 py-2 rounded-lg border border-gray-300">
+            class="uppercase-input text-center w-full px-3 py-2 rounded-lg border border-gray-300">
         </td>
         <td class="p-2">
-          <input type="number" class="credit w-full px-3 py-2 rounded-lg border border-gray-300">
+          <input type="number" class="credit text-center w-full px-3 py-2 rounded-lg border border-gray-300">
         </td>
         <td class="p-2">
-          <input type="number" class="grade w-full px-3 py-2 rounded-lg border border-gray-300" 
+          <input type="number" class="marks text-center w-full px-3 py-2 rounded-lg border border-gray-300"
+            oninput="updateGradeFromMarks(this)">
+        </td>
+        <td class="p-2">
+          <input type="number" class="grade text-center w-full px-3 py-2 rounded-lg border border-gray-300"
             oninput="calculateSGPA()">
         </td>
       `;
       document.getElementById("subjects").appendChild(row);
+    }
+
+    function updateGradeFromMarks(marksInput) {
+      let marks = parseFloat(marksInput.value) || 0;
+      if (marks > 120) marks = 120; // cap at 120
+      marksInput.value = marks;
+
+      const gradeInput = marksInput.closest("tr").querySelector(".grade");
+      const grade = Math.ceil(marks / 12); // 12 marks = 1 grade point
+      gradeInput.value = grade > 0 ? grade : 0;
+
+      calculateSGPA();
     }
 
     function calculateSGPA() {
