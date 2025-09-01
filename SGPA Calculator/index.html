@@ -6,25 +6,12 @@
   <title>SGPA Calculator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body {
-      background-color: #EAE9E4; /* light beige */
-    }
-    .card {
-      background-color: #F5F3ED; /* off-white card */
-    }
-    .table-header {
-      background-color: #D6D2C4; /* muted beige */
-    }
-    .btn-add {
-      background-color: #7A8B82; /* muted green-gray */
-      color: white;
-    }
-    .btn-add:hover {
-      background-color: #5F7268;
-    }
-    .uppercase-input {
-      text-transform: uppercase; /* force all caps */
-    }
+    body { background-color: #EAE9E4; }         /* light beige */
+    .card { background-color: #F5F3ED; }        /* off-white card */
+    .table-header { background-color: #D6D2C4; }/* muted beige */
+    .btn-add { background-color: #7A8B82; color: white; }
+    .btn-add:hover { background-color: #5F7268; }
+    .uppercase-input { text-transform: uppercase; }
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen font-sans">
@@ -32,13 +19,28 @@
   <div class="card p-8 rounded-2xl shadow-lg w-full max-w-3xl">
     <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">SGPA Calculator</h1>
 
+    <!-- Global Default Max Marks Control -->
+    <div class="mb-6 flex items-center gap-3 flex-wrap">
+      <label for="defaultMaxMarks" class="text-gray-800 font-medium">Default Max Marks</label>
+      <input
+        type="number"
+        id="defaultMaxMarks"
+        min="1"
+        value="120"
+        class="w-28 text-center px-3 py-2 rounded-lg border border-gray-300"
+        oninput="handleDefaultMaxChange()"
+      />
+      <span class="text-sm text-gray-600">Used for all rows unless overridden.</span>
+    </div>
+
     <table class="w-full border-separate border-spacing-y-3">
       <thead>
         <tr class="table-header text-center text-gray-800">
           <th class="p-2 rounded-l-lg">#</th>
           <th class="p-2">Subject</th>
           <th class="p-2">Credit</th>
-          <th class="p-2 whitespace-normal break-words w-32">Total Marks<br>(Max 120)</th>
+          <th class="p-2">Marks<br>(Obtained)</th>
+          <th class="p-2">Max Marks<br>(Override)</th>
           <th class="p-2 rounded-r-lg">Grade Point</th>
         </tr>
       </thead>
@@ -53,68 +55,126 @@
       Your SGPA: <span id="sgpa">0.00</span>
     </p>
     <p class="text-center mt-2 text-sm text-gray-600">
-      <em>Note: For Minor and GE Courses don't use Total Marks. Just use Grade Point.</em>
+      <em>You may declare the default Max Marks at the start. For Subjects with different Max Marks, use the override bar.</em>
     </p>
   </div>
 
   <script>
     let count = 0;
 
-    function addSubject() {
-      count++;
-      const row = document.createElement("tr");
-      row.className = "text-center";
-      row.innerHTML = `
-        <td class="p-2">${count}</td>
-        <td class="p-2">
-          <input type="text" placeholder="SUBJECT" 
-            class="uppercase-input text-center w-full px-3 py-2 rounded-lg border border-gray-300">
-        </td>
-        <td class="p-2">
-          <input type="number" class="credit text-center w-full px-3 py-2 rounded-lg border border-gray-300">
-        </td>
-        <td class="p-2">
-          <input type="number" class="marks text-center w-full px-3 py-2 rounded-lg border border-gray-300"
-            oninput="updateGradeFromMarks(this)">
-        </td>
-        <td class="p-2">
-          <input type="number" class="grade text-center w-full px-3 py-2 rounded-lg border border-gray-300"
-            oninput="calculateSGPA()">
-        </td>
-      `;
-      document.getElementById("subjects").appendChild(row);
+    // Helpers
+    function getDefaultMax() {
+      const raw = parseFloat(document.getElementById('defaultMaxMarks').value);
+      return Number.isFinite(raw) && raw > 0 ? raw : 120;
     }
 
-    function updateGradeFromMarks(marksInput) {
-      let marks = parseFloat(marksInput.value) || 0;
-      if (marks > 120) marks = 120; // cap at 120
-      marksInput.value = marks;
+    function capToMax(value, max) {
+      if (!Number.isFinite(value)) return 0;
+      if (!Number.isFinite(max) || max <= 0) return value;
+      return Math.max(0, Math.min(value, max));
+    }
 
-      const gradeInput = marksInput.closest("tr").querySelector(".grade");
-      const grade = Math.ceil(marks / 12); // 12 marks = 1 grade point
-      gradeInput.value = grade > 0 ? grade : 0;
+    function computeGrade(marks, maxMarks) {
+      if (!(Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0)) return 0;
+      const ratio = marks / maxMarks;
+      const gp = Math.ceil(ratio * 10);
+      return Math.max(0, Math.min(gp, 10)); // clamp 0..10
+    }
 
+    function updateMarksPlaceholder(row) {
+      const marksEl = row.querySelector('.marks');
+      const maxInput = row.querySelector('.overrideMax');
+      const effectiveMax = parseFloat(maxInput.value) > 0 ? parseFloat(maxInput.value) : getDefaultMax();
+      marksEl.placeholder = '≤ ' + effectiveMax;
+      marksEl.setAttribute('inputmode', 'decimal');
+    }
+
+    // Row-level updater (called when marks/override change)
+    function updateGradeFromRow(row) {
+      const marksInput = row.querySelector('.marks');
+      const gradeInput = row.querySelector('.grade');
+      const overrideInput = row.querySelector('.overrideMax');
+
+      const overrideVal = parseFloat(overrideInput.value);
+      const maxMarks = (Number.isFinite(overrideVal) && overrideVal > 0) ? overrideVal : getDefaultMax();
+
+      // Cap marks to effective max for this row
+      let marks = parseFloat(marksInput.value);
+      marks = Number.isFinite(marks) ? marks : 0;
+      marks = capToMax(marks, maxMarks);
+      marksInput.value = (marks || marks === 0) ? marks : '';
+
+      // Compute grade and write
+      const gp = computeGrade(marks, maxMarks);
+      gradeInput.value = gp;
+
+      updateMarksPlaceholder(row);
       calculateSGPA();
     }
 
+    function addSubject() {
+      count++;
+      const row = document.createElement('tr');
+      row.className = 'text-center align-middle';
+
+      const defaultMax = getDefaultMax();
+
+      row.innerHTML = `
+        <td class="p-2">${count}</td>
+        <td class="p-2">
+          <input type="text" placeholder="SUBJECT"
+            class="uppercase-input text-center w-full px-3 py-2 rounded-lg border border-gray-300">
+        </td>
+        <td class="p-2">
+          <input type="number" class="credit text-center w-full px-3 py-2 rounded-lg border border-gray-300" oninput="calculateSGPA()">
+        </td>
+        <td class="p-2">
+          <input type="number" class="marks text-center w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="≤ ${defaultMax}" oninput="updateGradeFromRow(this.closest('tr'))">
+        </td>
+        <td class="p-2">
+          <input type="number" class="overrideMax text-center w-full px-3 py-2 rounded-lg border border-gray-300" placeholder="Optional" min="1" oninput="updateGradeFromRow(this.closest('tr'))">
+        </td>
+        <td class="p-2">
+          <input type="number" class="grade text-center w-full px-3 py-2 rounded-lg border border-gray-300" oninput="calculateSGPA()">
+        </td>
+      `;
+
+      document.getElementById('subjects').appendChild(row);
+      updateMarksPlaceholder(row);
+    }
+
+    function handleDefaultMaxChange() {
+      const v = getDefaultMax();
+      // sanitize UI value if user clears it
+      if (!document.getElementById('defaultMaxMarks').value) {
+        document.getElementById('defaultMaxMarks').value = v;
+      }
+      // Refresh placeholders + recompute grades for all rows
+      document.querySelectorAll('#subjects tr').forEach(updateGradeFromRow);
+    }
+
     function calculateSGPA() {
-      const credits = document.querySelectorAll(".credit");
-      const grades = document.querySelectorAll(".grade");
+      const credits = document.querySelectorAll('.credit');
+      const grades  = document.querySelectorAll('.grade');
 
       let totalCredits = 0;
-      let weightedSum = 0;
+      let weightedSum  = 0;
 
       for (let i = 0; i < credits.length; i++) {
-        const credit = parseFloat(credits[i].value) || 0;
-        const grade = parseFloat(grades[i].value) || 0;
-
-        totalCredits += credit;
-        weightedSum += credit * grade;
+        const c = parseFloat(credits[i].value) || 0;
+        const g = parseFloat(grades[i].value)  || 0;
+        totalCredits += c;
+        weightedSum  += c * g;
       }
 
-      const sgpa = totalCredits ? (weightedSum / totalCredits).toFixed(2) : 0;
-      document.getElementById("sgpa").textContent = sgpa;
+      const sgpa = totalCredits ? (weightedSum / totalCredits) : 0;
+      document.getElementById('sgpa').textContent = sgpa.toFixed(2);
     }
+
+    // Start with one row ready
+    window.addEventListener('DOMContentLoaded', () => {
+      addSubject();
+    });
   </script>
 </body>
 </html>
